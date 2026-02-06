@@ -11,9 +11,10 @@ CHUNK_SAMPLES = 512  # Silero VAD 推荐的每帧样本数
 BYTES_PER_FRAME = CHUNK_SAMPLES * 4  # 512 float32 = 2048 bytes
 
 # VAD 参数
-SILENCE_THRESHOLD_SEC = 1.5   # 静音多久后停止接收
-MAX_RECORD_SECONDS = 30       # 最大录音时长
+SILENCE_THRESHOLD_SEC = 1.5   # 静音多久后停止接收（已弃用，改为手动停止）
+MAX_RECORD_SECONDS = 60       # 最大录音时长（1分钟）
 MIN_SPEECH_SEC = 0.5          # 最短有效语音
+STREAMING_TRANSCRIBE_INTERVAL = 2.0  # 流式转录间隔（秒）
 
 # VAD 检测参数
 VAD_THRESHOLD = 0.5

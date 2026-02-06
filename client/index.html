@@ -3,97 +3,199 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>语音情感识别</title>
+  <title>语音情感识别系统</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>语音情感识别</h1>
-      <p class="subtitle">实时语音分析 — 情感 / 转录 / 事件检测</p>
-    </header>
+  <div class="app-wrapper">
+    <!-- 背景装饰 -->
+    <div class="bg-decoration"></div>
+    
+    <div class="container">
+      <header class="app-header">
+        <div class="header-content">
+          <h1>
+            <span class="icon">🎤</span>
+            语音情感识别系统
+          </h1>
+          <p class="subtitle">实时语音转文字 · 智能情绪分析 · 多维度情感检测</p>
+        </div>
+      </header>
 
-    <!-- 模式选择 -->
-    <div class="mode-selector">
-      <label class="mode-option">
-        <input type="radio" name="mode" value="sensevoice" checked>
-        <span class="mode-card">
-          <strong>SenseVoice</strong>
-          <small>一站式: ASR + 7类情感 + 事件检测</small>
-        </span>
-      </label>
-      <label class="mode-option">
-        <input type="radio" name="mode" value="paraformer">
-        <span class="mode-card">
-          <strong>Paraformer + SpeechBrain</strong>
-          <small>中文ASR + 4类情感概率</small>
-        </span>
-      </label>
-    </div>
-
-    <!-- 连接控制 -->
-    <div class="connect-bar">
-      <button id="btn-connect" class="btn-connect">连接</button>
-      <span id="connect-steps" class="connect-steps"></span>
-    </div>
-
-    <!-- 状态栏 -->
-    <div class="status-bar">
-      <span id="connection-status" class="status-dot disconnected"></span>
-      <span id="status-text">就绪</span>
-      <span id="timer" class="timer"></span>
-    </div>
-
-    <!-- 波形可视化 -->
-    <div class="waveform-container">
-      <canvas id="waveform" width="600" height="100"></canvas>
-    </div>
-
-    <!-- 录音按钮 -->
-    <div class="controls">
-      <button id="btn-record" class="btn-record">开始录音</button>
-      <button id="btn-stop" class="btn-stop" disabled>停止</button>
-    </div>
-
-    <!-- 结果展示 -->
-    <div id="result-panel" class="result-panel hidden">
-      <h2>分析结果</h2>
-
-      <!-- 转录 -->
-      <div class="result-section">
-        <h3>转录文本</h3>
-        <p id="result-transcript" class="transcript"></p>
-        <p id="result-language" class="meta"></p>
+      <!-- 模式选择 -->
+      <div class="mode-selector">
+        <label class="mode-option">
+          <input type="radio" name="mode" value="sensevoice" checked>
+          <span class="mode-card">
+            <div class="mode-icon">✨</div>
+            <div class="mode-content">
+              <strong>SenseVoice</strong>
+              <small>一站式分析：ASR + 7类情感 + 事件检测</small>
+            </div>
+          </span>
+        </label>
+        <label class="mode-option">
+          <input type="radio" name="mode" value="paraformer">
+          <span class="mode-card">
+            <div class="mode-icon">🎯</div>
+            <div class="mode-content">
+              <strong>Paraformer + SpeechBrain</strong>
+              <small>中文ASR + 4类情感概率分析</small>
+            </div>
+          </span>
+        </label>
       </div>
 
-      <!-- 情感 -->
-      <div class="result-section">
-        <h3>情感分析</h3>
-        <div id="result-emotion"></div>
+      <!-- 连接控制区 -->
+      <div class="connect-section">
+        <button id="btn-connect" class="btn-connect">
+          <span class="btn-icon">🔌</span>
+          <span class="btn-text">连接服务器</span>
+        </button>
+        <div id="connect-progress" class="connect-progress hidden">
+          <div class="progress-bar">
+            <div id="progress-fill" class="progress-fill"></div>
+          </div>
+          <div id="progress-text" class="progress-text">正在连接...</div>
+        </div>
       </div>
 
-      <!-- 事件（仅 SenseVoice） -->
-      <div id="event-section" class="result-section hidden">
-        <h3>语音事件</h3>
-        <p id="result-event"></p>
+      <!-- 主控制区 -->
+      <div class="main-controls">
+        <!-- 状态卡片 -->
+        <div class="status-card">
+          <div class="status-header">
+            <span id="connection-status" class="status-dot disconnected"></span>
+            <span id="status-text" class="status-text">未连接</span>
+            <span id="timer" class="timer"></span>
+          </div>
+          
+          <!-- 波形可视化 -->
+          <div class="waveform-container">
+            <canvas id="waveform" width="600" height="120"></canvas>
+            <div class="waveform-overlay">
+              <div class="waveform-label">实时音频波形</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 录音控制 -->
+        <div class="record-controls">
+          <button id="btn-record" class="btn-record" disabled>
+            <span class="btn-icon">🎙️</span>
+            <span class="btn-text">开始录音</span>
+          </button>
+          <button id="btn-stop" class="btn-stop" disabled>
+            <span class="btn-icon">⏹️</span>
+            <span class="btn-text">停止</span>
+          </button>
+        </div>
+        <div id="record-hint" class="record-hint">
+          <span class="hint-icon">💡</span>
+          <span class="hint-text">请先连接服务器后再开始录音</span>
+        </div>
       </div>
 
-      <!-- 音频特征 -->
-      <div class="result-section">
-        <h3>音频特征</h3>
-        <p id="result-audio-features"></p>
+      <!-- 实时转录显示 -->
+      <div id="live-transcript-panel" class="live-transcript-panel hidden">
+        <div class="live-transcript-header">
+          <span class="live-icon">🎤</span>
+          <h3>实时转录</h3>
+        </div>
+        <div class="live-transcript-content">
+          <p id="live-transcript-text" class="live-transcript-text">正在识别...</p>
+        </div>
       </div>
 
-      <!-- 文本情感 -->
-      <div id="sentiment-section" class="result-section hidden">
-        <h3>文本情感 (SnowNLP)</h3>
-        <p id="result-text-sentiment"></p>
-      </div>
-    </div>
+      <!-- 结果展示区 -->
+      <div id="result-panel" class="result-panel hidden">
+        <div class="result-header">
+          <h2>
+            <span class="result-icon">📊</span>
+            分析结果
+          </h2>
+          <button id="btn-clear-result" class="btn-clear" title="清除结果">✕</button>
+        </div>
 
-    <!-- 错误提示 -->
-    <div id="error-panel" class="error-panel hidden">
-      <p id="error-message"></p>
+        <div class="result-content">
+          <!-- 转录文本卡片 -->
+          <div class="result-card transcript-card">
+            <div class="card-header">
+              <span class="card-icon">📝</span>
+              <h3>转录文本</h3>
+            </div>
+            <div class="card-body">
+              <p id="result-transcript" class="transcript">等待分析...</p>
+              <p id="result-language" class="meta"></p>
+            </div>
+          </div>
+
+          <!-- 情感分析卡片 -->
+          <div class="result-card emotion-card">
+            <div class="card-header">
+              <span class="card-icon">💭</span>
+              <h3>情感分析</h3>
+            </div>
+            <div class="card-body">
+              <div id="result-emotion" class="emotion-display"></div>
+            </div>
+          </div>
+
+          <!-- 事件检测卡片（仅 SenseVoice） -->
+          <div id="event-section" class="result-card event-card hidden">
+            <div class="card-header">
+              <span class="card-icon">🔔</span>
+              <h3>语音事件</h3>
+            </div>
+            <div class="card-body">
+              <div id="result-event" class="event-display"></div>
+            </div>
+          </div>
+
+          <!-- 音频特征卡片 -->
+          <div class="result-card features-card">
+            <div class="card-header">
+              <span class="card-icon">📈</span>
+              <h3>音频特征</h3>
+            </div>
+            <div class="card-body">
+              <div id="result-audio-features" class="features-display"></div>
+            </div>
+          </div>
+
+          <!-- 文本情感卡片 -->
+          <div id="sentiment-section" class="result-card sentiment-card hidden">
+            <div class="card-header">
+              <span class="card-icon">💬</span>
+              <h3>文本情感分析</h3>
+            </div>
+            <div class="card-body">
+              <div id="result-text-sentiment" class="sentiment-display"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 历史记录 -->
+      <div class="history-section">
+        <div class="history-header">
+          <h3>
+            <span class="history-icon">📚</span>
+            历史记录
+          </h3>
+          <button id="btn-clear-history" class="btn-clear-small" title="清空历史">清空</button>
+        </div>
+        <div id="history-list" class="history-list">
+          <div class="history-empty">暂无历史记录</div>
+        </div>
+      </div>
+
+      <!-- 错误提示 -->
+      <div id="error-panel" class="error-panel hidden">
+        <div class="error-icon">⚠️</div>
+        <p id="error-message"></p>
+        <button id="btn-dismiss-error" class="btn-dismiss">关闭</button>
+      </div>
     </div>
   </div>
 

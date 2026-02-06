@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import queue
+import time
 
 from fastapi import FastAPI, WebSocket, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -64,33 +65,48 @@ async def connect_models(mode: str = Query(default=DEFAULT_MODE)):
     async def event_generator():
         loop = asyncio.get_event_loop()
         mm = ModelManager()
+        last_heartbeat = time.time()
+        heartbeat_interval = 2.0  # 每2秒发送一次心跳
 
         # 在线程池中加载模型
         load_task = loop.run_in_executor(None, mm.load_for_mode, mode, on_progress)
 
-        while True:
-            # 从队列取进度事件
-            try:
-                while True:
-                    evt = progress_queue.get_nowait()
-                    yield f"data: {json.dumps(evt)}\n\n"
-            except queue.Empty:
-                pass
-
-            if load_task.done():
-                # 检查是否有异常
-                exc = load_task.exception()
-                if exc:
-                    yield f"data: {json.dumps({'step': 'error', 'status': 'error', 'message': str(exc)})}\n\n"
-                else:
-                    # 排空剩余事件
-                    while not progress_queue.empty():
+        try:
+            while True:
+                current_time = time.time()
+                
+                # 从队列取进度事件
+                try:
+                    while True:
                         evt = progress_queue.get_nowait()
                         yield f"data: {json.dumps(evt)}\n\n"
-                    yield f"data: {json.dumps({'step': 'all', 'status': 'ready'})}\n\n"
-                break
+                        last_heartbeat = current_time
+                except queue.Empty:
+                    pass
 
-            await asyncio.sleep(0.1)
+                # 检查任务是否完成
+                if load_task.done():
+                    # 检查是否有异常
+                    exc = load_task.exception()
+                    if exc:
+                        yield f"data: {json.dumps({'step': 'error', 'status': 'error', 'message': str(exc)})}\n\n"
+                    else:
+                        # 排空剩余事件
+                        while not progress_queue.empty():
+                            evt = progress_queue.get_nowait()
+                            yield f"data: {json.dumps(evt)}\n\n"
+                        yield f"data: {json.dumps({'step': 'all', 'status': 'ready'})}\n\n"
+                    break
+
+                # 发送心跳保持连接活跃
+                if current_time - last_heartbeat >= heartbeat_interval:
+                    yield f"data: {json.dumps({'step': 'heartbeat', 'status': 'loading'})}\n\n"
+                    last_heartbeat = current_time
+
+                await asyncio.sleep(0.1)
+        except Exception as e:
+            logger.exception(f"SSE事件生成器异常: {e}")
+            yield f"data: {json.dumps({'step': 'error', 'status': 'error', 'message': str(e)})}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
