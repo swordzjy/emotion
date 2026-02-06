@@ -1,0 +1,32 @@
+# 核心依赖
+torch>=2.0.0
+torchaudio>=2.0.0
+
+# 音频处理
+pyaudio
+soundfile
+numpy
+
+# ========== ASR 语音识别（三选一）==========
+
+# 方案1: FunASR (阿里) - 中文效果最好 ⭐⭐⭐⭐⭐
+funasr
+modelscope
+
+# 方案2: faster-whisper - 多语言，速度快
+# faster-whisper
+
+# 方案3: openai-whisper - 多语言，下载慢
+# openai-whisper
+
+# ========== 情感识别 ==========
+# 如果用 SenseVoice，不需要单独的情感模型
+# 如果用 Paraformer/Whisper，需要 speechbrain
+speechbrain
+
+# 文本情感分析
+snownlp
+# textblob  # 英文
+
+# 可选
+# librosa

@@ -1,0 +1,21 @@
+# 核心依赖
+torch>=2.0.0
+torchaudio>=2.0.0
+
+# 音频处理
+pyaudio
+soundfile
+numpy
+
+# Whisper ASR
+openai-whisper
+
+# 情感识别
+speechbrain
+
+# 文本情感分析
+snownlp
+textblob
+
+# 可选：如果需要重采样
+# librosa
