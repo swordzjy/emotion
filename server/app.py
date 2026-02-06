@@ -5,10 +5,11 @@ import json
 import logging
 import queue
 import time
+import os
 
 from fastapi import FastAPI, WebSocket, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import PROJECT_ROOT, DEFAULT_MODE
@@ -123,8 +124,41 @@ async def ws_audio(ws: WebSocket, mode: str = DEFAULT_MODE):
 
 
 # 挂载前端静态文件
-import os
-
 client_dir = os.path.join(PROJECT_ROOT, "client")
+logger.info(f"客户端目录路径: {client_dir}")
+logger.info(f"客户端目录是否存在: {os.path.isdir(client_dir)}")
+
 if os.path.isdir(client_dir):
-    app.mount("/client", StaticFiles(directory=client_dir, html=True), name="client")
+    # 检查关键文件是否存在
+    index_html = os.path.join(client_dir, "index.html")
+    logger.info(f"index.html路径: {index_html}")
+    logger.info(f"index.html是否存在: {os.path.exists(index_html)}")
+    
+    # 挂载静态文件
+    try:
+        app.mount("/client", StaticFiles(directory=client_dir, html=True), name="client")
+        logger.info("✓ 成功挂载客户端静态文件")
+    except Exception as e:
+        logger.error(f"✗ 挂载客户端静态文件失败: {e}", exc_info=True)
+    
+    # 添加根路径重定向到客户端
+    @app.get("/")
+    async def root():
+        """根路径重定向到客户端"""
+        index_path = os.path.join(client_dir, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        else:
+            return {"error": "客户端文件未找到", "client_dir": client_dir}
+    
+    # 添加调试页面
+    @app.get("/debug")
+    async def debug_page():
+        """调试页面"""
+        debug_path = os.path.join(client_dir, "debug.html")
+        if os.path.exists(debug_path):
+            return FileResponse(debug_path)
+        else:
+            return {"error": "调试页面未找到"}
+else:
+    logger.error(f"✗ 客户端目录不存在: {client_dir}")

@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>客户端诊断页面</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .test-section {
+      background: white;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .test-section h2 {
+      margin-top: 0;
+      color: #333;
+    }
+    .test-item {
+      padding: 10px;
+      margin: 10px 0;
+      border-left: 4px solid #ddd;
+    }
+    .test-item.pass {
+      border-left-color: #4caf50;
+      background: #e8f5e9;
+    }
+    .test-item.fail {
+      border-left-color: #f44336;
+      background: #ffebee;
+    }
+    .test-item.warn {
+      border-left-color: #ff9800;
+      background: #fff3e0;
+    }
+    code {
+      background: #f5f5f5;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+    pre {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔍 客户端诊断页面</h1>
+  
+  <div class="test-section">
+    <h2>1. 资源文件检查</h2>
+    <div id="resource-tests"></div>
+  </div>
+  
+  <div class="test-section">
+    <h2>2. DOM元素检查</h2>
+    <div id="dom-tests"></div>
+  </div>
+  
+  <div class="test-section">
+    <h2>3. 浏览器兼容性</h2>
+    <div id="browser-tests"></div>
+  </div>
+  
+  <div class="test-section">
+    <h2>4. 网络连接测试</h2>
+    <div id="network-tests"></div>
+  </div>
+  
+  <div class="test-section">
+    <h2>5. 控制台错误</h2>
+    <div id="console-errors"></div>
+  </div>
+
+  <script>
+    const resources = [
+      { name: 'CSS文件', url: './css/style.css' },
+      { name: 'audio.js', url: './js/audio.js' },
+      { name: 'websocket.js', url: './js/websocket.js' },
+      { name: 'ui.js', url: './js/ui.js' },
+      { name: 'app.js', url: './js/app.js' },
+      { name: 'audio-processor.js', url: './js/audio-processor.js' },
+    ];
+    
+    const domElements = [
+      'btn-connect',
+      'btn-record',
+      'btn-stop',
+      'connection-status',
+      'status-text',
+      'waveform',
+      'result-panel',
+    ];
+    
+    const consoleErrors = [];
+    const originalError = console.error;
+    console.error = function(...args) {
+      consoleErrors.push(args.join(' '));
+      originalError.apply(console, args);
+    };
+    
+    window.addEventListener('error', function(e) {
+      consoleErrors.push(`${e.filename}:${e.lineno} - ${e.message}`);
+    }, true);
+    
+    // 测试资源文件
+    async function testResources() {
+      const container = document.getElementById('resource-tests');
+      for (const resource of resources) {
+        const item = document.createElement('div');
+        item.className = 'test-item';
+        item.innerHTML = `检查 <code>${resource.name}</code>...`;
+        container.appendChild(item);
+        
+        try {
+          const response = await fetch(resource.url, { method: 'HEAD' });
+          if (response.ok) {
+            item.className += ' pass';
+            item.innerHTML = `✓ <code>${resource.name}</code> 加载成功 (${response.status})`;
+          } else {
+            item.className += ' fail';
+            item.innerHTML = `✗ <code>${resource.name}</code> 加载失败 (${response.status})`;
+          }
+        } catch (e) {
+          item.className += ' fail';
+          item.innerHTML = `✗ <code>${resource.name}</code> 加载失败: ${e.message}`;
+        }
+      }
+    }
+    
+    // 测试DOM元素
+    function testDOM() {
+      const container = document.getElementById('dom-tests');
+      domElements.forEach(id => {
+        const item = document.createElement('div');
+        const el = document.getElementById(id);
+        if (el) {
+          item.className = 'test-item pass';
+          item.innerHTML = `✓ 元素 <code>#${id}</code> 存在`;
+        } else {
+          item.className = 'test-item fail';
+          item.innerHTML = `✗ 元素 <code>#${id}</code> 不存在`;
+        }
+        container.appendChild(item);
+      });
+    }
+    
+    // 测试浏览器兼容性
+    function testBrowser() {
+      const container = document.getElementById('browser-tests');
+      const tests = [
+        {
+          name: 'WebSocket支持',
+          test: () => typeof WebSocket !== 'undefined',
+        },
+        {
+          name: 'Web Audio API支持',
+          test: () => typeof AudioContext !== 'undefined' || typeof webkitAudioContext !== 'undefined',
+        },
+        {
+          name: 'AudioWorklet支持',
+          test: () => {
+            try {
+              const ctx = new (AudioContext || webkitAudioContext)();
+              return typeof ctx.audioWorklet !== 'undefined';
+            } catch {
+              return false;
+            }
+          },
+        },
+        {
+          name: 'MediaDevices API支持',
+          test: () => navigator.mediaDevices && navigator.mediaDevices.getUserMedia,
+        },
+        {
+          name: 'LocalStorage支持',
+          test: () => typeof Storage !== 'undefined',
+        },
+      ];
+      
+      tests.forEach(({ name, test }) => {
+        const item = document.createElement('div');
+        const result = test();
+        item.className = 'test-item ' + (result ? 'pass' : 'fail');
+        item.innerHTML = (result ? '✓' : '✗') + ` ${name}`;
+        container.appendChild(item);
+      });
+    }
+    
+    // 测试网络连接
+    async function testNetwork() {
+      const container = document.getElementById('network-tests');
+      
+      // 测试健康检查端点
+      const healthItem = document.createElement('div');
+      healthItem.className = 'test-item';
+      healthItem.innerHTML = '检查服务器健康状态...';
+      container.appendChild(healthItem);
+      
+      try {
+        const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+        const host = window.location.host;
+        const response = await fetch(`${protocol}//${host}/health`);
+        if (response.ok) {
+          const data = await response.json();
+          healthItem.className += ' pass';
+          healthItem.innerHTML = `✓ 服务器健康检查通过<br><pre>${JSON.stringify(data, null, 2)}</pre>`;
+        } else {
+          healthItem.className += ' fail';
+          healthItem.innerHTML = `✗ 服务器健康检查失败 (${response.status})`;
+        }
+      } catch (e) {
+        healthItem.className += ' fail';
+        healthItem.innerHTML = `✗ 无法连接到服务器: ${e.message}`;
+      }
+      
+      // 测试WebSocket连接
+      const wsItem = document.createElement('div');
+      wsItem.className = 'test-item';
+      wsItem.innerHTML = '测试WebSocket连接...';
+      container.appendChild(wsItem);
+      
+      try {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host;
+        const ws = new WebSocket(`${protocol}//${host}/ws/audio?mode=sensevoice`);
+        
+        const timeout = setTimeout(() => {
+          ws.close();
+          wsItem.className += ' warn';
+          wsItem.innerHTML = '⚠ WebSocket连接超时（10秒）';
+        }, 10000);
+        
+        ws.onopen = () => {
+          clearTimeout(timeout);
+          ws.close();
+          wsItem.className += ' pass';
+          wsItem.innerHTML = '✓ WebSocket连接成功';
+        };
+        
+        ws.onerror = (e) => {
+          clearTimeout(timeout);
+          wsItem.className += ' fail';
+          wsItem.innerHTML = `✗ WebSocket连接失败: ${e.message || '未知错误'}`;
+        };
+      } catch (e) {
+        wsItem.className += ' fail';
+        wsItem.innerHTML = `✗ WebSocket测试失败: ${e.message}`;
+      }
+    }
+    
+    // 显示控制台错误
+    function showConsoleErrors() {
+      const container = document.getElementById('console-errors');
+      if (consoleErrors.length === 0) {
+        const item = document.createElement('div');
+        item.className = 'test-item pass';
+        item.innerHTML = '✓ 未检测到控制台错误';
+        container.appendChild(item);
+      } else {
+        consoleErrors.forEach(error => {
+          const item = document.createElement('div');
+          item.className = 'test-item fail';
+          item.innerHTML = `✗ ${error}`;
+          container.appendChild(item);
+        });
+      }
+    }
+    
+    // 运行所有测试
+    window.addEventListener('DOMContentLoaded', async () => {
+      await testResources();
+      testDOM();
+      testBrowser();
+      await testNetwork();
+      
+      // 延迟显示控制台错误
+      setTimeout(showConsoleErrors, 2000);
+    });
+  </script>
+</body>
+</html>

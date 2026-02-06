@@ -34,18 +34,45 @@ const UI = {
       liveTranscriptText: document.getElementById("live-transcript-text"),
     };
 
-    this._waveCtx = this.els.waveform.getContext("2d");
-    this._resizeCanvas();
-    window.addEventListener("resize", () => this._resizeCanvas());
-    this.clearWaveform();
+    // 检查关键元素是否存在
+    const missingElements = [];
+    const requiredElements = [
+      "connection-status", "status-text", "timer", "waveform",
+      "btn-record", "btn-stop", "result-panel"
+    ];
+    
+    requiredElements.forEach(id => {
+      if (!document.getElementById(id)) {
+        missingElements.push(id);
+      }
+    });
+    
+    if (missingElements.length > 0) {
+      console.error("缺少必需的DOM元素:", missingElements);
+      const errorMsg = `页面加载错误：缺少以下元素: ${missingElements.join(", ")}`;
+      alert(errorMsg);
+      return;
+    }
 
-    // 绑定事件
+    // 初始化波形Canvas
+    if (this.els.waveform) {
+      this._waveCtx = this.els.waveform.getContext("2d");
+      this._resizeCanvas();
+      window.addEventListener("resize", () => this._resizeCanvas());
+      this.clearWaveform();
+    } else {
+      console.error("waveform元素不存在，无法初始化波形显示");
+    }
+
+    // 绑定事件（安全地检查元素是否存在）
     if (this.els.btnClearResult) {
       this.els.btnClearResult.addEventListener("click", () => this.hideResults());
     }
     if (this.els.btnDismissError) {
       this.els.btnDismissError.addEventListener("click", () => {
-        this.els.errorPanel.classList.add("hidden");
+        if (this.els.errorPanel) {
+          this.els.errorPanel.classList.add("hidden");
+        }
       });
     }
     if (this.els.btnClearHistory) {
@@ -57,8 +84,14 @@ const UI = {
   },
 
   _resizeCanvas() {
+    if (!this.els.waveform || !this._waveCtx) {
+      return;
+    }
     const c = this.els.waveform;
     const container = c.parentElement;
+    if (!container) {
+      return;
+    }
     const dpr = window.devicePixelRatio || 1;
     c.width = (container.clientWidth - 32) * dpr; // padding
     c.height = 120 * dpr;
@@ -69,11 +102,16 @@ const UI = {
 
   // ---- 状态 ----
   setStatus(text, dotClass) {
-    this.els.statusText.textContent = text;
-    this.els.connectionStatus.className = "status-dot " + (dotClass || "disconnected");
+    if (this.els.statusText) {
+      this.els.statusText.textContent = text;
+    }
+    if (this.els.connectionStatus) {
+      this.els.connectionStatus.className = "status-dot " + (dotClass || "disconnected");
+    }
   },
 
   setTimer(seconds) {
+    if (!this.els.timer) return;
     if (seconds == null) {
       this.els.timer.textContent = "";
     } else {
@@ -84,22 +122,26 @@ const UI = {
   },
 
   setRecordingState(recording) {
+    if (!this.els.btnRecord || !this.els.btnStop) return;
     const btn = this.els.btnRecord;
     const btnText = btn.querySelector(".btn-text");
     if (recording) {
-      btnText.textContent = "录音中...";
+      if (btnText) btnText.textContent = "录音中...";
       btn.classList.add("recording");
-      this.els.btnStop.disabled = false;
+      if (this.els.btnStop) this.els.btnStop.disabled = false;
     } else {
-      btnText.textContent = "开始录音";
+      if (btnText) btnText.textContent = "开始录音";
       btn.classList.remove("recording");
       btn.disabled = false;
-      this.els.btnStop.disabled = true;
+      if (this.els.btnStop) this.els.btnStop.disabled = true;
     }
   },
 
   // ---- 波形可视化（增强版） ----
   drawWaveform(samples) {
+    if (!this.els.waveform || !this._waveCtx) {
+      return;
+    }
     // 计算RMS用于波形显示
     let sum = 0;
     for (let i = 0; i < samples.length; i++) {
@@ -117,6 +159,9 @@ const UI = {
   },
 
   _drawWaveformFromBuffer() {
+    if (!this.els.waveform || !this._waveCtx) {
+      return;
+    }
     const ctx = this._waveCtx;
     const w = this.els.waveform.width / (window.devicePixelRatio || 1);
     const h = this.els.waveform.height / (window.devicePixelRatio || 1);
@@ -186,6 +231,9 @@ const UI = {
   },
 
   clearWaveform() {
+    if (!this.els.waveform || !this._waveCtx) {
+      return;
+    }
     this.waveformBuffer = [];
     const ctx = this._waveCtx;
     const w = this.els.waveform.width / (window.devicePixelRatio || 1);
@@ -205,50 +253,66 @@ const UI = {
 
   // ---- 结果展示 ----
   showResult(data) {
-    this.els.errorPanel.classList.add("hidden");
+    if (!this.els.resultPanel) {
+      console.error("resultPanel元素不存在");
+      return;
+    }
+    if (this.els.errorPanel) {
+      this.els.errorPanel.classList.add("hidden");
+    }
     this.els.resultPanel.classList.remove("hidden");
 
     // 转录
-    this.els.resultTranscript.textContent = data.transcript || "(无文本)";
+    if (this.els.resultTranscript) {
+      this.els.resultTranscript.textContent = data.transcript || "(无文本)";
+    }
 
     // 语言
-    if (data.language) {
-      this.els.resultLanguage.textContent = `语言: ${data.language}`;
-      this.els.resultLanguage.classList.remove("hidden");
-    } else {
-      this.els.resultLanguage.classList.add("hidden");
+    if (this.els.resultLanguage) {
+      if (data.language) {
+        this.els.resultLanguage.textContent = `语言: ${data.language}`;
+        this.els.resultLanguage.classList.remove("hidden");
+      } else {
+        this.els.resultLanguage.classList.add("hidden");
+      }
     }
 
     // 情感
-    if (data.mode === "sensevoice") {
-      this._renderSenseVoiceEmotion(data);
-    } else {
-      this._renderParaformerEmotion(data);
+    if (this.els.resultEmotion) {
+      if (data.mode === "sensevoice") {
+        this._renderSenseVoiceEmotion(data);
+      } else {
+        this._renderParaformerEmotion(data);
+      }
     }
 
     // 事件
-    if (data.event) {
-      this.els.eventSection.classList.remove("hidden");
-      const eventEmoji = this._getEventEmoji(data.event);
-      this.els.resultEvent.innerHTML = `
-        <span class="event-tag">
-          ${eventEmoji} ${data.event}
-        </span>
-      `;
-    } else {
-      this.els.eventSection.classList.add("hidden");
+    if (this.els.eventSection && this.els.resultEvent) {
+      if (data.event) {
+        this.els.eventSection.classList.remove("hidden");
+        const eventEmoji = this._getEventEmoji(data.event);
+        this.els.resultEvent.innerHTML = `
+          <span class="event-tag">
+            ${eventEmoji} ${data.event}
+          </span>
+        `;
+      } else {
+        this.els.eventSection.classList.add("hidden");
+      }
     }
 
     // 音频特征
-    if (data.audio_features) {
+    if (data.audio_features && this.els.resultAudioFeatures) {
       this._renderAudioFeatures(data.audio_features);
     }
 
     // 文本情感
-    if (data.text_sentiment) {
-      this._renderTextSentiment(data.text_sentiment);
-    } else {
-      this.els.sentimentSection.classList.add("hidden");
+    if (this.els.sentimentSection && this.els.resultTextSentiment) {
+      if (data.text_sentiment) {
+        this._renderTextSentiment(data.text_sentiment);
+      } else {
+        this.els.sentimentSection.classList.add("hidden");
+      }
     }
 
     // 保存到历史记录
@@ -267,6 +331,10 @@ const UI = {
   },
 
   _renderAudioFeatures(features) {
+    if (!this.els.resultAudioFeatures) {
+      console.error("resultAudioFeatures元素不存在");
+      return;
+    }
     const items = [];
     if (features.loudness_db !== undefined) {
       items.push({
@@ -304,6 +372,10 @@ const UI = {
   },
 
   _renderTextSentiment(sentiment) {
+    if (!this.els.sentimentSection || !this.els.resultTextSentiment) {
+      console.error("sentimentSection或resultTextSentiment元素不存在");
+      return;
+    }
     this.els.sentimentSection.classList.remove("hidden");
     const score = sentiment.score || 0;
     const label = sentiment.label || "中性";
@@ -325,6 +397,10 @@ const UI = {
   },
 
   _renderSenseVoiceEmotion(data) {
+    if (!this.els.resultEmotion) {
+      console.error("resultEmotion元素不存在");
+      return;
+    }
     const emotionRaw = (data.emotion_raw || "NEUTRAL").toLowerCase();
     const emotionText = data.emotion || data.emotion_raw || "中性";
     
@@ -359,6 +435,10 @@ const UI = {
   },
 
   _renderParaformerEmotion(data) {
+    if (!this.els.resultEmotion) {
+      console.error("resultEmotion元素不存在");
+      return;
+    }
     if (!data.emotion) return;
     const emo = data.emotion;
     const probs = emo.probabilities || {};
@@ -404,14 +484,27 @@ const UI = {
   },
 
   showError(message) {
-    this.els.resultPanel.classList.add("hidden");
-    this.els.errorPanel.classList.remove("hidden");
-    this.els.errorMessage.textContent = message;
+    if (this.els.resultPanel) {
+      this.els.resultPanel.classList.add("hidden");
+    }
+    if (this.els.errorPanel) {
+      this.els.errorPanel.classList.remove("hidden");
+    }
+    if (this.els.errorMessage) {
+      this.els.errorMessage.textContent = message;
+    } else {
+      console.error("错误消息元素不存在:", message);
+      alert("错误: " + message);
+    }
   },
 
   hideResults() {
-    this.els.resultPanel.classList.add("hidden");
-    this.els.errorPanel.classList.add("hidden");
+    if (this.els.resultPanel) {
+      this.els.resultPanel.classList.add("hidden");
+    }
+    if (this.els.errorPanel) {
+      this.els.errorPanel.classList.add("hidden");
+    }
   },
 
   // ---- 实时转录 ----
@@ -475,6 +568,10 @@ const UI = {
   },
 
   renderHistory() {
+    if (!this.els.historyList) {
+      console.error("historyList元素不存在");
+      return;
+    }
     const history = this.getHistory();
     const listEl = this.els.historyList;
 

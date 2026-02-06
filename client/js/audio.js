@@ -43,7 +43,9 @@ class AudioCapture {
 
       // 加载 AudioWorklet 处理器
       try {
-        await this.audioContext.audioWorklet.addModule("js/audio-processor.js");
+        // 使用相对于当前页面的路径
+        const processorPath = new URL("js/audio-processor.js", window.location.href).href;
+        await this.audioContext.audioWorklet.addModule(processorPath);
       } catch (error) {
         // 如果AudioWorklet不支持，抛出更友好的错误
         throw new Error("浏览器不支持AudioWorklet，请使用Chrome、Edge或Firefox最新版本");

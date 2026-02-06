@@ -4,7 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>语音情感识别系统</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="./css/style.css">
+  <style>
+    /* 加载失败时的备用样式 */
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .loading-error { color: red; padding: 20px; background: #ffe6e6; border: 2px solid red; border-radius: 8px; margin: 20px 0; }
+  </style>
 </head>
 <body>
   <div class="app-wrapper">
@@ -199,9 +204,70 @@
     </div>
   </div>
 
-  <script src="js/audio.js"></script>
-  <script src="js/websocket.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/app.js"></script>
+  <script>
+    // 检查资源加载
+    window.addEventListener('error', function(e) {
+      console.error('资源加载失败:', e.filename, e.message, e);
+      if (e.target && e.target.tagName) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'loading-error';
+        errorDiv.innerHTML = `<strong>资源加载失败:</strong> ${e.target.src || e.target.href || e.filename}<br>错误: ${e.message}<br>请检查文件路径和服务器配置`;
+        document.body.insertBefore(errorDiv, document.body.firstChild);
+      }
+    }, true);
+    
+    // 检查关键元素是否存在（延迟检查，确保DOM完全加载）
+    function checkDOMElements() {
+      const requiredIds = [
+        'btn-connect', 'btn-record', 'btn-stop',
+        'connection-status', 'status-text', 'waveform', 'result-panel'
+      ];
+      const missing = [];
+      
+      requiredIds.forEach(id => {
+        if (!document.getElementById(id)) {
+          missing.push(id);
+        }
+      });
+      
+      if (missing.length > 0) {
+        console.error('缺少DOM元素:', missing);
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'loading-error';
+        errorDiv.style.position = 'fixed';
+        errorDiv.style.top = '0';
+        errorDiv.style.left = '0';
+        errorDiv.style.right = '0';
+        errorDiv.style.zIndex = '10000';
+        errorDiv.innerHTML = `<strong>页面加载错误</strong><br>缺少以下元素: ${missing.join(', ')}<br>请检查HTML文件是否正确加载`;
+        document.body.insertBefore(errorDiv, document.body.firstChild);
+        return false;
+      }
+      return true;
+    }
+    
+    // 等待DOM完全加载后再检查
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOMContentLoaded事件触发');
+        setTimeout(() => {
+          if (checkDOMElements()) {
+            console.log('✓ 所有必需的DOM元素都存在');
+          }
+        }, 100);
+      });
+    } else {
+      // DOM已经加载完成
+      setTimeout(() => {
+        if (checkDOMElements()) {
+          console.log('✓ 所有必需的DOM元素都存在');
+        }
+      }, 100);
+    }
+  </script>
+  <script src="./js/audio.js"></script>
+  <script src="./js/websocket.js"></script>
+  <script src="./js/ui.js"></script>
+  <script src="./js/app.js"></script>
 </body>
 </html>
