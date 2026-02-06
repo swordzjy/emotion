@@ -2,8 +2,8 @@ fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 websockets>=12.0
 # 以下已在环境中安装
-# funasr
-# modelscope
+funasr
+modelscope
 # torch>=2.0.0
 # torchaudio>=2.0.0
 # speechbrain
