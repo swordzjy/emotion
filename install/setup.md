@@ -232,3 +232,9 @@ lan: 客户端-服务器架构重构                                            
 
   # Open browser
   # http://localhost:8000/client/index.html
+
+   sudo fallocate -l 4G /swapfile
+   sudo chmod 600 /swapfile
+   sudo mkswap /swapfile
+   sudo swapon /swapfile
+   echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab

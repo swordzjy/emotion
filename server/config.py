@@ -26,6 +26,23 @@ SILERO_VAD_PATH = os.path.join(PROJECT_ROOT, "silero-vad")
 PRETRAINED_MODELS_DIR = os.path.join(PROJECT_ROOT, "pretrained_models")
 SPEECHBRAIN_EMOTION_DIR = os.path.join(PRETRAINED_MODELS_DIR, "emotion-recognition-wav2vec2-IEMOCAP")
 
+# 统一模型缓存目录（预下载后服务从此加载，不联网）
+# 可设置环境变量 MODEL_CACHE_DIR 覆盖，例如: export MODEL_CACHE_DIR=/data/emotion_models
+def _resolve_model_cache_dir():
+    explicit = os.environ.get("MODEL_CACHE_DIR")
+    if explicit:
+        return explicit
+    default = os.path.join(PRETRAINED_MODELS_DIR, "model_cache")
+    if os.path.isdir(default):
+        return default
+    for fallback in ("/data/emotion_models", "/data/emotion-models"):
+        if os.path.isdir(fallback):
+            return fallback
+    return default
+
+
+MODEL_CACHE_DIR = _resolve_model_cache_dir()
+
 # ffmpeg（部分模型需要）
 FFMPEG_PATH = r"E:\Python\ffmpeg\bin"
 if os.path.exists(FFMPEG_PATH):
