@@ -117,7 +117,8 @@ def run_paraformer_analysis(audio_tensor: torch.Tensor) -> dict:
     if result and len(result) > 0:
         transcript = result[0].get("text", "")
 
-    # 3. SpeechBrain 情感
+    # 3. SpeechBrain 情感（若启用了 EMOTION_LAZY_LOAD 则首次分析时在此加载）
+    mm.ensure_emotion_loaded()
     audio_input = speech_audio.unsqueeze(0) if speech_audio.dim() == 1 else speech_audio
     prob, score, index, emotion = mm.emotion_classifier.classify_batch(audio_input)
 

@@ -1,5 +1,6 @@
 """单例 ModelManager — 管理所有 ML 模型的加载和访问"""
 
+import gc
 import os
 import sys
 import threading
@@ -64,7 +65,10 @@ class ModelManager:
             self.vad_model, self.vad_utils = torch.hub.load(
                 repo_or_dir="snakers4/silero-vad",
                 model="silero_vad",
+                source="github",
                 force_reload=False,
+                skip_validation=True,
+                trust_repo=True,
                 onnx=False,
             )
             logger.info("[VAD] 网络加载完成")
@@ -101,6 +105,17 @@ class ModelManager:
         if on_progress:
             on_progress("paraformer", "done")
 
+        # 降低峰值内存：释放 Paraformer 加载过程中的临时对象后再加载情感模型
+        gc.collect()
+
+        # 内存紧张时可设置环境变量 EMOTION_LAZY_LOAD=1，情感模型在首次分析时再加载
+        if os.environ.get("EMOTION_LAZY_LOAD", "").strip() in ("1", "true", "yes"):
+            logger.info("[EMO] 已启用延迟加载，情感模型将在首次分析时加载")
+        else:
+            self._load_emotion_classifier(on_progress)
+
+    def ensure_emotion_loaded(self, on_progress=None):
+        """确保情感模型已加载（用于延迟加载场景，首次分析时调用）"""
         self._load_emotion_classifier(on_progress)
 
     def _load_emotion_classifier(self, on_progress=None):
@@ -139,9 +154,9 @@ class ModelManager:
         from funasr import AutoModel
 
         load_methods = [
-            {"model": "iic/SenseVoiceSmall", "trust_remote_code": True},
-            {"model": "FunAudioLLM/SenseVoiceSmall", "trust_remote_code": True},
-            {"model": "iic/SenseVoiceSmall", "trust_remote_code": True, "model_revision": "master"},
+         #   {"model": "iic/SenseVoiceSmall", "trust_remote_code": True},
+          #  {"model": "FunAudioLLM/SenseVoiceSmall", "trust_remote_code": True},
+            {"model": "iic/SenseVoiceSmall", "trust_remote_code": True, "model_revision": "master"}
         ]
 
         for i, kwargs in enumerate(load_methods):
@@ -158,7 +173,9 @@ class ModelManager:
 
     # ---- 按模式加载 ----
     def load_for_mode(self, mode: str, on_progress=None):
-        """根据模式加载所需的全部模型"""
+        """根据模式加载所需的全部模型（不自动检查远程新版本，仅用本地/缓存）"""
+        # 禁用 HuggingFace 在线检查，仅使用本地/缓存模型
+        os.environ["HF_HUB_OFFLINE"] = "1"
         self.load_silero_vad(on_progress)
         if mode == "paraformer":
             self.load_paraformer(on_progress)
