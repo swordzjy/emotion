@@ -1,0 +1,36 @@
+# systemd 服务示例：复制到 /etc/systemd/system/emotion.service 并调整路径
+# 针对单用户、8GB 内存优化：自动重启、工作目录、内存限制
+
+[Unit]
+Description=Emotion Recognition Web Service
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+
+# 项目根目录（必须，否则 ModuleNotFoundError）
+WorkingDirectory=/data/Emotion/emotion
+
+# Python 解释器（使用项目虚拟环境）
+ExecStart=/data/Emotion/emotion/.myenv/bin/python -m uvicorn server.app:app --host 0.0.0.0 --port 8000 --limit-concurrency 4 --timeout-keep-alive 30
+
+# 延迟加载情感模型，降低连接时内存峰值
+Environment="EMOTION_LAZY_LOAD=1"
+
+# 失败时自动重启，避免多次使用后无法连接
+Restart=on-failure
+RestartSec=10
+
+# 资源限制：8GB 机器建议保留一定余量，防止 OOM 杀进程
+MemoryMax=6G
+TasksMax=64
+
+# 标准输出/错误便于 journalctl 查看
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=emotion
+
+[Install]
+WantedBy=multi-user.target

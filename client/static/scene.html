@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0A0F1C">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>办公场景 - 视频播放</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="css/scene.css" rel="stylesheet">
+</head>
+<body>
+  <div id="videoContainer">
+    <video id="mainVideo" autoplay loop muted playsinline>
+      <source src="video/video1.mp4" type="video/mp4">
+      您的浏览器不支持视频播放
+    </video>
+  </div>
+
+  <div id="clickHintPanel" class="expanded">
+    <h3>
+      <span>🎮 操作方式</span>
+      <span class="panel-actions">
+        <button type="button" id="togglePanelBtn" class="toggle-btn" title="收起提示">收起</button>
+        <a href="index.html" class="back-btn">← 返回</a>
+      </span>
+    </h3>
+    <div class="panel-body">
+      <div class="scene-hint">点击人物部位或按数字键 1-5 互动</div>
+      <div class="click-item"><span class="area">头部</span>盛怒，老板被彻底打倒 (键5)</div>
+      <div class="click-item"><span class="area">胸部</span>声音不高，开始批评 (键1)</div>
+      <div class="click-item"><span class="area">左臂</span>声音提高，老板害怕 (键2)</div>
+      <div class="click-item"><span class="area">右臂</span>提高音量，开始动手 (键3)</div>
+      <div class="click-item"><span class="area">腰部以下</span>激烈发泄，老板求饶 (键4)</div>
+    </div>
+  </div>
+  <button type="button" id="expandPanelBtn" class="expand-btn" title="展开操作说明">🎮</button>
+
+  <div id="currentState">
+    <span id="stateText">初始状态：老板趾高气扬批评人（点击部位或按数字键1-5进行互动）</span>
+  </div>
+
+  <audio id="keySound" preload="auto"></audio>
+
+  <script>
+    const GameState = {
+      currentVideo: 0,
+      playing: false,
+      videos: {
+        0: { file: 'video1.mp4', description: '初始状态：老板趾高气扬批评人（点击部位或按数字键1-5进行互动）' },
+        1: { file: 'video2.mp4', description: '点击胸部：用户声音不高，开始批评 → 老板惊讶' },
+        2: { file: 'video3.mp4', description: '点击左臂：用户声音提高 → 老板开始害怕' },
+        3: { file: 'video4.mp4', description: '点击右臂：用户提高音量，开始动手 → 老板受挫' },
+        4: { file: 'video5.mp4', description: '点击腰部以下：用户激烈发泄 → 老板被打倒求饶' },
+        5: { file: 'video6.mp4', description: '点击头部：用户盛怒 → 老板被彻底打倒' }
+      }
+    };
+
+    const ClickAreas = {
+      head: { x: 35, y: 0, width: 30, height: 25, videoIndex: 5 },
+      chest: { x: 40, y: 25, width: 20, height: 20, videoIndex: 1 },
+      leftArm: { x: 10, y: 20, width: 25, height: 30, videoIndex: 2 },
+      rightArm: { x: 65, y: 20, width: 25, height: 30, videoIndex: 3 },
+      lowerBody: { x: 30, y: 55, width: 40, height: 45, videoIndex: 4 }
+    };
+
+    const videoElement = document.getElementById('mainVideo');
+    const stateText = document.getElementById('stateText');
+    const clickHintPanel = document.getElementById('clickHintPanel');
+
+    function playKeySound() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 800;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.1);
+      } catch (e) {}
+    }
+
+    function getAreaDisplayName(name) {
+      const map = { head: '头部', chest: '胸部', leftArm: '左臂', rightArm: '右臂', lowerBody: '腰部以下' };
+      return map[name] || name;
+    }
+
+    function getClickedArea(x, y) {
+      const pw = (x / window.innerWidth) * 100;
+      const ph = (y / window.innerHeight) * 100;
+      for (const [areaName, area] of Object.entries(ClickAreas)) {
+        if (pw >= area.x && pw <= area.x + area.width && ph >= area.y && ph <= area.y + area.height) {
+          return { name: getAreaDisplayName(areaName), videoIndex: area.videoIndex };
+        }
+      }
+      return null;
+    }
+
+    function highlightArea(areaName) {
+      clickHintPanel.querySelectorAll('.click-item .area').forEach(el => {
+        el.classList.remove('click-feedback');
+        if (el.textContent === areaName) {
+          el.classList.add('click-feedback');
+          setTimeout(() => el.classList.remove('click-feedback'), 300);
+        }
+      });
+    }
+
+    function switchVideo(videoNumber) {
+      if (GameState.playing || !GameState.videos[videoNumber] || GameState.currentVideo === videoNumber) return;
+
+      GameState.playing = true;
+      playKeySound();
+
+      const info = GameState.videos[videoNumber];
+      videoElement.src = 'video/' + info.file;
+      stateText.textContent = info.description;
+      videoElement.loop = (videoNumber === 0);
+
+      videoElement.load();
+      videoElement.play().then(() => {
+        GameState.currentVideo = videoNumber;
+        GameState.playing = false;
+        if (videoNumber !== 0) {
+          videoElement.addEventListener('ended', function reset() {
+            videoElement.removeEventListener('ended', reset);
+            setTimeout(() => switchVideo(0), 100);
+          }, { once: true });
+        }
+      }).catch(() => { GameState.playing = false; });
+    }
+
+    document.addEventListener('click', function(e) {
+      if (e.target.closest('#clickHintPanel') || e.target.closest('#expandPanelBtn')) return;
+      const area = getClickedArea(e.clientX, e.clientY);
+      if (area) {
+        switchVideo(area.videoIndex);
+        highlightArea(area.name);
+      }
+    });
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key >= '1' && e.key <= '5') {
+        const areaNames = ['chest', 'leftArm', 'rightArm', 'lowerBody', 'head'];
+        const idx = parseInt(e.key) - 1;
+        switchVideo(ClickAreas[areaNames[idx]].videoIndex);
+        highlightArea(getAreaDisplayName(areaNames[idx]));
+      }
+    });
+
+    function togglePanel() {
+      clickHintPanel.classList.toggle('expanded');
+      expandBtn.classList.toggle('visible', !clickHintPanel.classList.contains('expanded'));
+    }
+
+    const toggleBtn = document.getElementById('togglePanelBtn');
+    const expandBtn = document.getElementById('expandPanelBtn');
+    if (toggleBtn) toggleBtn.addEventListener('click', function(e) { e.stopPropagation(); togglePanel(); });
+    if (expandBtn) expandBtn.addEventListener('click', function(e) { e.stopPropagation(); togglePanel(); });
+
+    window.addEventListener('load', function() {
+      videoElement.play().catch(function() {
+        stateText.textContent = '请点击页面任意位置开始播放';
+        document.addEventListener('click', function start() {
+          videoElement.play();
+          stateText.textContent = GameState.videos[0].description;
+          document.removeEventListener('click', start);
+        }, { once: true });
+      });
+    });
+  </script>
+</body>
+</html>

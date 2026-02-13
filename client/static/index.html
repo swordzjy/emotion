@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0A0F1C">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>视频场景 - Video Scene App</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.460.0/lucide.min.css" rel="stylesheet">
+  <link href="css/app.css" rel="stylesheet">
+</head>
+<body>
+  <div class="app">
+    <!-- Status Bar -->
+    <header class="status-bar">
+      <span class="status-time">9:41</span>
+      <div class="status-icons">
+        <i data-lucide="signal" class="status-icon"></i>
+        <i data-lucide="wifi" class="status-icon"></i>
+        <div class="battery">
+          <div class="battery-capacity"></div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="content">
+      <!-- Header -->
+      <section class="header">
+        <h1 class="greeting">Hello, 欢迎回来！</h1>
+        <button class="btn-notif" aria-label="通知">
+          <i data-lucide="bell"></i>
+        </button>
+      </section>
+
+      <!-- Hero Metric -->
+      <section class="hero-metric">
+        <div class="hero-label">
+          <span class="hero-label-text">WELCOME</span>
+          <span class="hero-value">今日推荐场景</span>
+        </div>
+        <div class="hero-bar">
+          <div class="hero-bar-fill"></div>
+        </div>
+        <div class="hero-meta">
+          <span class="hero-meta-left">每天找一个场景，点击进入播放</span>
+          <span class="hero-meta-right">点击人物可互动</span>
+        </div>
+      </section>
+
+      <!-- Metrics Grid -->
+      <section class="metrics-grid">
+        <div class="metric-card">
+          <span class="metric-label">累计使用</span>
+          <span class="metric-value">127h</span>
+          <span class="metric-change">注册至今</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">总点击数</span>
+          <span class="metric-value">2,847</span>
+          <span class="metric-change">次</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">平均完成度</span>
+          <span class="metric-value">86%</span>
+          <span class="metric-change">视频播放</span>
+        </div>
+      </section>
+
+      <!-- Search -->
+      <section class="search-section">
+        <h2 class="section-label">场景检索</h2>
+        <div class="search-bar">
+          <i data-lucide="search"></i>
+          <input type="search" placeholder="搜索场景类型..." aria-label="搜索场景">
+        </div>
+        <div class="scene-chips">
+          <button class="chip active">职场</button>
+          <button class="chip">户外</button>
+          <button class="chip">居家</button>
+          <button class="chip">运动</button>
+        </div>
+      </section>
+
+      <!-- Habits Section -->
+      <section class="habits-section">
+        <div class="section-header">
+          <h2 class="section-label">习惯记录</h2>
+          <span class="section-count">使用维度</span>
+        </div>
+        <div class="habits-list">
+          <div class="habit-item">
+            <span class="habit-status">✓</span>
+            <div class="habit-content">
+              <span class="habit-title">早上使用时长</span>
+              <span class="habit-meta">累计 12.5h · 晨间活跃型</span>
+            </div>
+          </div>
+          <div class="habit-item">
+            <span class="habit-status">✓</span>
+            <div class="habit-content">
+              <span class="habit-title">晚上使用时长</span>
+              <span class="habit-meta">累计 8.2h · 夜间偏好型</span>
+            </div>
+          </div>
+          <div class="habit-item">
+            <span class="habit-status">◐</span>
+            <div class="habit-content">
+              <span class="habit-title">习惯分析</span>
+              <span class="habit-meta accent">综合评估 · 稳定型用户</span>
+            </div>
+          </div>
+          <div class="habit-item inactive">
+            <span class="habit-status">○</span>
+            <div class="habit-content">
+              <span class="habit-title">周均使用</span>
+              <span class="habit-meta">5.2h/周 · 坚持良好</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Week Section -->
+      <section class="week-section">
+        <div class="section-header">
+          <h2 class="section-label">本周完成度</h2>
+          <span class="week-percent">86%</span>
+        </div>
+        <div class="week-card">
+          <div class="day-row">
+            <span class="day-label">M</span>
+            <div class="day-bar"><div class="day-bar-fill"></div></div>
+          </div>
+          <div class="day-row">
+            <span class="day-label">T</span>
+            <div class="day-bar"><div class="day-bar-fill" style="width: 80%"></div></div>
+          </div>
+          <div class="day-row">
+            <span class="day-label">W</span>
+            <div class="day-bar"><div class="day-bar-fill"></div></div>
+          </div>
+          <div class="day-row">
+            <span class="day-label">T</span>
+            <div class="day-bar"><div class="day-bar-fill dim" style="width: 40%"></div></div>
+          </div>
+          <div class="day-row">
+            <span class="day-label">F</span>
+            <div class="day-bar"><div class="day-bar-fill"></div></div>
+          </div>
+          <div class="day-row today">
+            <span class="day-label">S</span>
+            <div class="day-bar"><div class="day-bar-fill" style="width: 70%"></div></div>
+          </div>
+          <div class="day-row">
+            <span class="day-label">S</span>
+            <div class="day-bar"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Programs Section -->
+      <section class="programs-section">
+        <div class="section-header">
+          <h2 class="section-label">场景与入口</h2>
+          <a href="#" class="section-link">查看全部 →</a>
+        </div>
+        <div class="programs-scroll">
+          <a href="scene.html" class="program-card program-card-link" title="进入办公场景播放">
+            <div class="program-header accent">
+              <span class="program-badge">职场</span>
+              <i data-lucide="video"></i>
+            </div>
+            <div class="program-content">
+              <h3 class="program-title">办公室场景</h3>
+              <p class="program-desc">点击进入播放，互动点击人物</p>
+            </div>
+          </a>
+          <div class="program-card">
+            <div class="program-header">
+              <span class="program-badge accent">户外</span>
+              <i data-lucide="mountain"></i>
+            </div>
+            <div class="program-content">
+              <h3 class="program-title">公园漫步场景</h3>
+              <p class="program-desc">点击进入播放，互动点击人物</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Help Section -->
+      <section class="help-section">
+        <h2 class="section-label">使用指南</h2>
+        <div class="help-card">
+          <div class="help-item">
+            <span>如何播放视频？</span>
+            <i data-lucide="chevron-right"></i>
+          </div>
+          <div class="help-divider"></div>
+          <div class="help-item expanded">
+            <div class="help-item-header">
+              <span>如何点击人物互动？</span>
+              <i data-lucide="chevron-down"></i>
+            </div>
+            <p class="help-item-content">进入场景播放后，在视频画面中点击人物身体部位即可产生互动效果。</p>
+          </div>
+          <div class="help-divider"></div>
+          <div class="help-item">
+            <span>场景类型说明</span>
+            <i data-lucide="chevron-right"></i>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Tab Bar -->
+    <nav class="tab-bar">
+      <a href="#home" class="tab-item active" data-tab="home">
+        <i data-lucide="house"></i>
+        <span>首页</span>
+      </a>
+      <a href="#stats" class="tab-item" data-tab="stats">
+        <i data-lucide="chart-bar"></i>
+        <span>统计</span>
+      </a>
+      <a href="#scenes" class="tab-item" data-tab="scenes">
+        <i data-lucide="compass"></i>
+        <span>场景</span>
+      </a>
+      <a href="#profile" class="tab-item" data-tab="profile">
+        <i data-lucide="user"></i>
+        <span>我的</span>
+      </a>
+    </nav>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.460.0/lucide.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

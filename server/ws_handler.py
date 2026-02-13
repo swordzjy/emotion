@@ -1,6 +1,7 @@
 """WebSocket 处理 — 流式转录 + 情绪分析"""
 
 import asyncio
+import gc
 import json
 import time
 import logging
@@ -187,15 +188,15 @@ async def handle_audio_ws(ws: WebSocket, mode: str):
                     logger.debug(f"[接收循环] 等待数据中... (已接收 {receive_count} 条消息, 音频块: {len(audio_chunks)})")
                 continue
             except WebSocketDisconnect:
-                # 连接断开，让外层异常处理
-                logger.warning("=" * 50)
-                logger.warning("⚠ 接收消息时检测到WebSocketDisconnect，抛出异常")
-                logger.warning("=" * 50)
                 raise
             except Exception as e:
-                # 其他异常，记录但不停止（可能是临时网络问题）
+                err_str = str(e)
+                # 客户端已断开后再次 receive 会触发此错误，视为正常断开
+                if "disconnect" in err_str.lower():
+                    logger.info("客户端已断开连接，停止接收")
+                    should_stop = True
+                    break
                 logger.warning(f"接收消息时出现异常（继续等待）: {e}")
-                # 不设置should_stop，继续等待
                 await asyncio.sleep(0.1)
                 continue
 
@@ -310,7 +311,10 @@ async def handle_audio_ws(ws: WebSocket, mode: str):
 
         logger.info("分析完成，发送结果")
         await ws.send_json(result)
-        
+
+        # 单用户多次使用后释放内存，避免进程无法建立新连接
+        gc.collect()
+
         # 正常关闭连接
         try:
             await ws.close()

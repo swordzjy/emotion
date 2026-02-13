@@ -1,0 +1,330 @@
+/* 办公场景视频播放页 - 与 index 相同的 UI 氛围与移动端适配 */
+:root {
+  --bg-primary: #0A0F1C;
+  --bg-surface: #1E293B;
+  --bg-surface-deep: #0F172A;
+  --accent: #22D3EE;
+  --text-primary: #FFFFFF;
+  --text-secondary: #64748B;
+  --text-muted: #475569;
+  --icon-muted: #94A3B8;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 20px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  height: 100%;
+  min-height: 100dvh;
+  min-height: 100vh;
+  overflow: hidden;
+  background: var(--bg-primary);
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: var(--text-primary);
+  cursor: pointer;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 视频容器 - 全屏填充，考虑安全区域 */
+#videoContainer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+}
+
+#mainVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 操作提示面板 - 使用 index 相同色彩 */
+#clickHintPanel {
+  position: fixed;
+  top: calc(16px + var(--safe-top));
+  right: calc(16px + var(--safe-right));
+  left: auto;
+  max-width: 280px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(34, 211, 238, 0.2);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  transition: opacity 0.25s ease, max-width 0.25s ease, padding 0.25s ease;
+}
+
+#clickHintPanel:not(.expanded) {
+  max-width: 0;
+  padding: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#clickHintPanel:not(.expanded) .panel-body {
+  display: none;
+}
+
+#clickHintPanel h3 {
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+#clickHintPanel:not(.expanded) h3 {
+  margin-bottom: 0;
+}
+
+.panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toggle-btn {
+  background: var(--bg-surface-deep);
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  color: var(--accent);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.toggle-btn:hover {
+  background: rgba(34, 211, 238, 0.15);
+}
+
+/* 收起时显示的展开按钮 */
+.expand-btn {
+  position: fixed;
+  top: calc(16px + var(--safe-top));
+  right: calc(16px + var(--safe-right));
+  z-index: 1001;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  color: var(--accent);
+  font-size: 20px;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.expand-btn.visible {
+  display: flex;
+}
+
+.expand-btn:hover {
+  background: var(--bg-surface-deep);
+}
+
+.back-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.back-btn:hover {
+  text-decoration: underline;
+}
+
+.scene-hint {
+  margin-bottom: 10px;
+  font-size: 11px;
+  color: var(--icon-muted);
+}
+
+.click-item {
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: var(--bg-surface-deep);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--accent);
+  font-size: 12px;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.click-item .area {
+  display: inline-block;
+  background: var(--bg-surface);
+  color: var(--accent);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  margin-right: 8px;
+  min-width: 56px;
+  text-align: center;
+  font-size: 11px;
+}
+
+/* 底部状态栏 */
+#currentState {
+  position: fixed;
+  bottom: calc(16px + var(--safe-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  padding: 12px 20px;
+  border-radius: var(--radius-xl);
+  z-index: 1000;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 2px solid var(--accent);
+  max-width: calc(100vw - 32px);
+  line-height: 1.4;
+}
+
+@keyframes clickEffect {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.click-feedback {
+  animation: clickEffect 0.3s ease;
+}
+
+/* 小屏手机 (≤375px) */
+@media (max-width: 375px) {
+  .expand-btn {
+    top: calc(12px + var(--safe-top));
+    right: 12px;
+  }
+
+  #clickHintPanel {
+    top: calc(12px + var(--safe-top));
+    right: 12px;
+    left: 12px;
+    max-width: none;
+    padding: 12px;
+  }
+
+  #clickHintPanel h3 {
+    font-size: 13px;
+  }
+
+  .click-item {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  .click-item .area {
+    min-width: 48px;
+    font-size: 10px;
+  }
+
+  #currentState {
+    bottom: calc(12px + var(--safe-bottom));
+    padding: 10px 16px;
+    font-size: 12px;
+    max-width: calc(100vw - 24px);
+  }
+}
+
+/* 竖屏时的面板布局 */
+@media (max-height: 500px) {
+  #clickHintPanel {
+    max-height: 50vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .click-item {
+    margin: 6px 0;
+  }
+}
+
+/* 横屏适配 - 面板缩小 */
+@media (orientation: landscape) and (max-height: 400px) {
+  #clickHintPanel {
+    top: calc(8px + var(--safe-top));
+    padding: 10px 12px;
+    max-width: 240px;
+  }
+
+  #clickHintPanel h3 {
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+
+  .click-item {
+    margin: 4px 0;
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+
+  #currentState {
+    bottom: calc(8px + var(--safe-bottom));
+    padding: 8px 14px;
+    font-size: 11px;
+  }
+}
+
+/* 触摸目标 ≥44px (iPhone/Android 可访问性) */
+@media (pointer: coarse) {
+  .back-btn {
+    min-height: 44px;
+    min-width: 80px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .click-item {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+}

@@ -133,15 +133,36 @@ export EMOTION_LAZY_LOAD=1
 uvicorn server.app:app --host 0.0.0.0 --port 8000
 ```
 
-或在 systemd 中配置：
+或在 systemd 中配置。**单用户多次使用后无法连接**时，请使用完整服务配置（含 Restart、WorkingDirectory、MemoryMax 等）：
 
-```ini
-[Service]
-Environment="EMOTION_LAZY_LOAD=1"
-ExecStart=/path/to/python -m uvicorn server.app:app --host 0.0.0.0 --port 8000
+```bash
+# 1. 复制示例并修改路径
+sudo cp install/emotion.service.example /etc/systemd/system/emotion.service
+sudo nano /etc/systemd/system/emotion.service  # 调整 WorkingDirectory、ExecStart、User
+
+# 2. 启用并启动
+sudo systemctl daemon-reload
+sudo systemctl enable emotion
+sudo systemctl start emotion
+sudo systemctl status emotion
+
+# 3. 查看日志
+journalctl -u emotion -f
 ```
 
-效果：点击“连接服务器”时只加载 VAD + Paraformer，不加载 SpeechBrain；**第一次点击“停止录音”并得到分析结果时**再加载情感模型（该次会稍慢），之后正常。
+**emotion.service 关键配置说明**：
+
+| 配置项 | 作用 |
+|--------|------|
+| `WorkingDirectory` | 项目根目录，避免 ModuleNotFoundError |
+| `Restart=on-failure` | 崩溃/超内存后自动重启，解决多次使用后无法连接 |
+| `RestartSec=10` | 重启前等待 10 秒，避免频繁重启 |
+| `MemoryMax=6G` | 8GB 机器限制进程内存，超限时 systemd 重启服务 |
+| `--limit-concurrency 4` | 限制并发连接，单用户更稳定 |
+| `--timeout-keep-alive 30` | 空闲连接超时，释放资源 |
+| `EMOTION_LAZY_LOAD=1` | 延迟加载情感模型，降低连接时内存峰值 |
+
+效果：点击“连接服务器”时只加载 VAD + Paraformer，不加载 SpeechBrain；**第一次点击“停止录音”并得到分析结果时**再加载情感模型（该次会稍慢），之后正常。每次分析后执行 `gc.collect()` 释放内存。
 
 ### 4. 代码层面的优化
 
