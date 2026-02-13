@@ -76,6 +76,14 @@ class AudioCapture {
       // 注意：不连接到destination，避免音频反馈
       // this.workletNode.connect(this.audioContext.destination);
 
+      // 页面从后台切回时恢复 AudioContext（解决先访问 static 再访问本页时移动端无声音问题）
+      this._onVisibilityChange = () => {
+        if (document.visibilityState === "visible" && this.audioContext?.state === "suspended") {
+          this.audioContext.resume().catch(() => {});
+        }
+      };
+      document.addEventListener("visibilitychange", this._onVisibilityChange);
+
       this.active = true;
     } catch (error) {
       // 清理资源
@@ -104,8 +112,11 @@ class AudioCapture {
         });
         this.stream = null;
       }
+      if (this._onVisibilityChange) {
+        document.removeEventListener("visibilitychange", this._onVisibilityChange);
+        this._onVisibilityChange = null;
+      }
       if (this.audioContext) {
-        // 异步关闭，避免阻塞
         this.audioContext.close().catch(err => {
           console.warn("关闭AudioContext时出错:", err);
         });

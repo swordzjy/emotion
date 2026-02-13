@@ -46,6 +46,16 @@
   <audio id="keySound" preload="auto"></audio>
 
   <script>
+    // 离开页面时关闭 AudioContext，避免影响 client/index.html 的麦克风采集（移动端关键）
+    function closeSoundCtx() {
+      if (typeof _soundCtx !== 'undefined' && _soundCtx) {
+        _soundCtx.close().catch(function () {});
+        _soundCtx = null;
+      }
+    }
+    window.addEventListener('pagehide', closeSoundCtx);
+    window.addEventListener('beforeunload', closeSoundCtx);
+
     const GameState = {
       currentVideo: 0,
       playing: false,
@@ -71,9 +81,11 @@
     const stateText = document.getElementById('stateText');
     const clickHintPanel = document.getElementById('clickHintPanel');
 
+    let _soundCtx = null;
     function playKeySound() {
       try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const ctx = _soundCtx || new (window.AudioContext || window.webkitAudioContext)();
+        if (!_soundCtx) _soundCtx = ctx;
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
