@@ -27,18 +27,17 @@ PRETRAINED_MODELS_DIR = os.path.join(PROJECT_ROOT, "pretrained_models")
 SPEECHBRAIN_EMOTION_DIR = os.path.join(PRETRAINED_MODELS_DIR, "emotion-recognition-wav2vec2-IEMOCAP")
 
 # 统一模型缓存目录（预下载后服务从此加载，不联网）
-# 可设置环境变量 MODEL_CACHE_DIR 覆盖，例如: export MODEL_CACHE_DIR=/data/emotion_models
+# 可设置环境变量 MODEL_CACHE_DIR 覆盖。Windows/Ubuntu 均兼容（自动 abspath+expanduser）
+# 迁移项目目录（如 Windows→Ubuntu）时始终使用项目内路径，避免 fallback 指向错误目录
 def _resolve_model_cache_dir():
+    def _norm(p):
+        return os.path.abspath(os.path.expanduser(os.path.normpath(str(p))))
+
     explicit = os.environ.get("MODEL_CACHE_DIR")
     if explicit:
-        return explicit
-    default = os.path.join(PRETRAINED_MODELS_DIR, "model_cache")
-    if os.path.isdir(default):
-        return default
-    for fallback in ("/data/emotion_models", "/data/emotion-models"):
-        if os.path.isdir(fallback):
-            return fallback
-    return default
+        return _norm(explicit)
+    # 始终使用项目内 model_cache，不自动 fallback 到 /data/emotion_models（易与迁移目录混淆）
+    return _norm(os.path.join(PRETRAINED_MODELS_DIR, "model_cache"))
 
 
 MODEL_CACHE_DIR = _resolve_model_cache_dir()

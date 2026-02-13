@@ -3,10 +3,11 @@
 预下载所有模型到本地目录，启动服务时可自动从本地加载（无需联网）。
 
 用法:
-    python scripts/download_models.py [--cache-dir PATH]
+    python scripts/download_models.py [--cache-dir PATH] [--check-only]
 
-默认缓存目录: pretrained_models/model_cache/
-也可通过环境变量 MODEL_CACHE_DIR 指定。
+默认缓存目录: 与 server 一致（pretrained_models/model_cache 或 MODEL_CACHE_DIR 环境变量）
+--check-only: 仅检查离线模型是否完整，不下载（缺失时打印提示）
+--cache-dir: 覆盖默认，需与启动服务时的 MODEL_CACHE_DIR 一致以兼容
 
 若 ~/.cache/modelscope、~/.cache/huggingface、~/.cache/torch 中已有模型，
 会优先复制过来，避免重复下载。
@@ -24,6 +25,18 @@ if PROJECT_ROOT not in sys.path:
 
 os.chdir(PROJECT_ROOT)
 
+# 与 server 一致的缓存目录解析（Windows/Ubuntu 兼容）
+def _get_model_cache_dir(cache_dir_arg=None):
+    """返回规范化后的 cache_dir，与 server/config 逻辑一致"""
+    if cache_dir_arg:
+        return os.path.abspath(os.path.expanduser(os.path.normpath(cache_dir_arg)))
+    try:
+        from server.config import MODEL_CACHE_DIR
+        return MODEL_CACHE_DIR
+    except ImportError:
+        default = os.path.join(PROJECT_ROOT, "pretrained_models", "model_cache")
+        return os.path.abspath(os.path.expanduser(os.environ.get("MODEL_CACHE_DIR", default)))
+
 # 默认缓存根目录（通常 ~/.cache）
 DEFAULT_CACHE_ROOT = os.path.expanduser("~/.cache")
 
@@ -38,10 +51,9 @@ MODELSCOPE_IIC_MODELS = [
 def _find_ms_iic_paths(cache_dir: str = None) -> list:
     """收集所有可能包含 ModelScope iic 模型的目录（用于检查是否已存在，避免重复下载）"""
     candidates = []
-    # 1. 脚本 cache_dir 或 env MODEL_CACHE_DIR
-    base = (cache_dir or os.environ.get("MODEL_CACHE_DIR") or
-            os.path.join(PROJECT_ROOT, "pretrained_models", "model_cache"))
-    base = os.path.abspath(base)
+    # 1. 脚本 cache_dir 或与 server 一致的 MODEL_CACHE_DIR
+    base = cache_dir or _get_model_cache_dir(None)
+    base = os.path.abspath(os.path.expanduser(str(base)))
     for parts in [("hub", "models", "iic"), ("models", "iic")]:
         p = os.path.join(base, *parts)
         if os.path.isdir(p):
@@ -241,12 +253,40 @@ def migrate_speechbrain_from_hf_cache(speechbrain_dir: str) -> bool:
         return False
 
 
+def run_model_check(cache_dir: str) -> dict:
+    """全面检查离线模型是否完整，返回各模块状态 {"paraformer": bool, "sensevoice": bool, "speechbrain": bool, "silero": bool}"""
+    result = {}
+    cache_dir = os.path.abspath(os.path.expanduser(str(cache_dir)))
+
+    # Paraformer
+    result["paraformer"], _ = _paraformer_models_exist(cache_dir)
+
+    # SenseVoice（HuggingFace hub 内需有 SenseVoice 相关缓存）
+    hf_hub = os.path.join(cache_dir, "huggingface", "hub")
+    result["sensevoice"] = bool(os.path.isdir(hf_hub) and os.listdir(hf_hub))
+
+    # SpeechBrain（固定路径）
+    speechbrain_dir = os.path.join(PROJECT_ROOT, "pretrained_models", "emotion-recognition-wav2vec2-IEMOCAP")
+    result["speechbrain"] = _speechbrain_savedir_complete(speechbrain_dir) and _wav2vec2_base_local_complete(speechbrain_dir)
+
+    # Silero
+    silero_path = os.path.join(PROJECT_ROOT, "silero-vad")
+    result["silero"] = os.path.isdir(silero_path) and bool(os.listdir(silero_path))
+
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description="预下载语音情感识别所需模型")
     parser.add_argument(
         "--cache-dir",
-        default=os.environ.get("MODEL_CACHE_DIR", os.path.join(PROJECT_ROOT, "pretrained_models", "model_cache")),
-        help="模型缓存根目录（ModelScope 格式，内部会创建 hub/models/）",
+        default=None,
+        help="覆盖默认缓存目录（默认与 server 一致: pretrained_models/model_cache 或 MODEL_CACHE_DIR）",
+    )
+    parser.add_argument(
+        "--check-only",
+        action="store_true",
+        help="仅检查离线模型是否完整，不下载；缺失时打印提示",
     )
     parser.add_argument("--paraformer", action="store_true", default=True, help="下载 Paraformer 相关模型（默认开启）")
     parser.add_argument("--no-paraformer", action="store_false", dest="paraformer")
@@ -263,9 +303,26 @@ def main():
     )
     args = parser.parse_args()
 
-    cache_dir = os.path.abspath(args.cache_dir)
-    os.makedirs(cache_dir, exist_ok=True)
+    cache_dir = _get_model_cache_dir(args.cache_dir)
     print(f"模型缓存目录: {cache_dir}")
+
+    # --check-only: 仅检查，不下载
+    if args.check_only:
+        status = run_model_check(cache_dir)
+        all_ok = all(status.values())
+        print("\n--- 离线模型检查结果 ---")
+        for name, ok in status.items():
+            print(f"  {name}: {'✓ 完整' if ok else '✗ 缺失'}")
+        if not all_ok:
+            missing = [k for k, v in status.items() if not v]
+            print("\n缺失模型，请运行以下命令下载：")
+            print("  python scripts/download_models.py")
+            print("或分别执行: python scripts/download_models.py --paraformer --sensevoice --speechbrain --silero")
+        else:
+            print("\n✓ 所有模型已完整，启动服务时无需联网。")
+        sys.exit(0 if all_ok else 1)
+
+    os.makedirs(cache_dir, exist_ok=True)
 
     # 优先从 ~/.cache 迁移已有模型
     migrated = migrate_from_default_cache(cache_dir, use_move=args.move)

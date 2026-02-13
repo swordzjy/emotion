@@ -9,10 +9,12 @@
 | **Paraformer 三件套** (ASR+VAD+标点) | `{MODEL_CACHE_DIR}/models/iic/` 或 `{MODEL_CACHE_DIR}/hub/models/iic/` | MODEL_CACHE_DIR | ModelScope 格式 |
 | **SenseVoice** | `{MODEL_CACHE_DIR}/huggingface/hub/` | MODEL_CACHE_DIR | HuggingFace 缓存 |
 | **SpeechBrain 情感** | `pretrained_models/emotion-recognition-wav2vec2-IEMOCAP/` | 固定路径 | 含 `wav2vec2-base/` 子目录（离线必需） |
-| **Silero VAD** | `项目根/silero-vad/` | 固定路径 | 优先本地；无则从 torch hub 拉取 |
+| **Silero VAD** | `项目根/silero-vad/` | 固定路径 | 仅本地；缺失时启动报错提示先运行 download_models.py |
 
 其中 `MODEL_CACHE_DIR` 默认 `pretrained_models/model_cache`，可通过环境变量覆盖。  
 SpeechBrain 与 Silero **不在** `model_cache` 下，始终使用上述固定路径。
+
+**Windows / Ubuntu 路径兼容**：`MODEL_CACHE_DIR` 与 `MODELSCOPE_CACHE`、`cache_dir` 均使用 `os.path.abspath(os.path.expanduser())` 规范化，支持 `~`、相对路径及不同盘符。
 
 ### 目录结构示例（项目根 = `emotion/`）
 
@@ -41,9 +43,20 @@ emotion/
 
 ## 预下载模型与离线加载
 
-支持提前手动下载所有模型，启动服务时自动从本地加载，无需联网。
+支持提前手动下载所有模型，启动服务时自动从本地加载，**无需联网**。  
+启动后若发现模型缺失，仅提示「需尝试联网下载」，**不会**实际发起网络下载。
 
-### 1. 预下载所有模型
+### 1. 检查离线模型是否完整
+
+启动服务前建议先检查：
+
+```bash
+python scripts/download_models.py --check-only
+```
+
+若输出全部 ✓，则启动服务后无需联网；若有 ✗，则需先执行下载。
+
+### 2. 预下载所有模型
 
 在**有网络**的环境下执行（只需执行一次）：
 
@@ -51,31 +64,23 @@ emotion/
 # 激活虚拟环境后
 python scripts/download_models.py
 
-# 或指定 MODEL_CACHE_DIR 对应的缓存目录（仅影响 Paraformer、SenseVoice）
-python scripts/download_models.py --cache-dir /data/emotion_models
+# 或指定与启动服务一致的 MODEL_CACHE_DIR（仅影响 Paraformer、SenseVoice）
+python scripts/download_models.py --cache-dir emotion/models
 ```
+
+**注意**：`--cache-dir` 应与启动服务时的 `MODEL_CACHE_DIR` 一致，以保证下载与加载路径统一（Windows/Ubuntu 均兼容）。
 
 下载结果按模型写入不同位置：
 - **Paraformer、SenseVoice** → `--cache-dir` 指定的目录（默认 `pretrained_models/model_cache`）
 - **SpeechBrain 情感** → `pretrained_models/emotion-recognition-wav2vec2-IEMOCAP/`（固定）
-- **Silero VAD** → `项目根/silero-vad/`（固定）
+- **Silero VAD** → `emotion/silero-vad/`（固定）
 
-### 2. 启动服务时使用本地模型
+### 3. 启动服务时使用本地模型
 
 当 `MODEL_CACHE_DIR` 存在时，Paraformer 与 SenseVoice 会从该目录加载；SpeechBrain 与 Silero 始终从固定路径加载：
 
-```bash
-# 默认 MODEL_CACHE_DIR=pretrained_models/model_cache
-uvicorn server.app:app --host 0.0.0.0 --port 8000
 
-# 或指定（Ubuntu 常见）
-export MODEL_CACHE_DIR=/data/emotion_models
-uvicorn server.app:app --host 0.0.0.0 --port 8000
-```
-
-未设置时，若 `pretrained_models/model_cache` 存在则自动使用；否则尝试 `/data/emotion_models`、`/data/emotion-models`。
-
-### 3. 完全离线部署
+### 4. 完全离线部署
 
 1. 在有网络的机器上运行 `python scripts/download_models.py`
 2. 将整个项目目录（含 `pretrained_models/`、`silero-vad/`）拷贝到离线服务器
@@ -113,6 +118,8 @@ echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 | sensevoice  | ≥ 4GB        | ≥ 2GB     |
 | 两者都使用  | ≥ 6GB        | ≥ 2GB     |
 
+**8GB 内存**：Paraformer + SpeechBrain 合计约 4–6GB，建议至少加 2–4GB swap，否则加载时可能卡住或 OOM。  
+若加载卡住，可运行 `free -h` 查看内存/swap，或设置 `EMOTION_LAZY_LOAD=1` 延迟加载情感模型。  
 小内存机器（如 2GB）建议至少加 4GB swap，并启用下面的延迟加载。
 
 ### 3. 延迟加载情感模型（降低连接时峰值内存）
@@ -120,7 +127,7 @@ echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 若连接阶段因内存不足被 OOM，可让 **情感模型在首次分析时再加载**，从而降低“连接”时的内存峰值：
 
 ```bash
-# 启动前设置环境变量（仅 paraformer 模式生效）
+# 启动前设置环境变量（仅 paraformer 模式生效）目前v只能使用 EMOTION_LAZY_LOAD
 export EMOTION_LAZY_LOAD=1
 # 再启动服务，例如：
 uvicorn server.app:app --host 0.0.0.0 --port 8000
@@ -140,5 +147,5 @@ ExecStart=/path/to/python -m uvicorn server.app:app --host 0.0.0.0 --port 8000
 
 - 在加载 Paraformer 与 SpeechBrain 之间已执行 `gc.collect()`，减轻峰值内存。
 - 设置 `HF_HUB_OFFLINE=1`（在 `load_for_mode` 中）可避免加载时联网检查模型新版本，减少异常与等待。
-- 已内置 ModelScope 离线补丁：检测到本地 `model.pt` 时直接使用，避免联网验证。
+- 已内置 ModelScope 离线补丁：检测到本地 `model.pt` 时直接使用；**未找到时不再联网**，而是抛出错误，提示先运行 `python scripts/download_models.py`。
 - **SpeechBrain 离线**：hyperparams 引用 `facebook/wav2vec2-base` 需联网。`download_models.py --speechbrain` 会下载到 `wav2vec2-base/` 并 patch hyperparams；拷贝整个 `emotion-recognition-wav2vec2-IEMOCAP` 目录（含 `wav2vec2-base`）即可离线使用。

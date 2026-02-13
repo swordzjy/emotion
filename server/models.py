@@ -19,7 +19,26 @@ from .config import (
 
 logger = logging.getLogger(__name__)
 
+
+def _log_memory():
+    """输出当前内存占用（便于诊断 8GB 等低内存环境）"""
+    try:
+        if sys.platform == "linux":
+            with open("/proc/self/status") as f:
+                for line in f:
+                    if line.startswith("VmRSS:") or line.startswith("VmSize:") or line.startswith("VmPeak:"):
+                        logger.info("[MEM] %s", line.strip())
+    except Exception as e:
+        logger.debug("[MEM] 无法获取内存信息: %s", e)
+
+
 _modelscope_patch_applied = False
+
+# 服务启动时即设置缓存路径和离线补丁，避免首次连接时 FunASR 仍尝试联网
+def _init_modelscope_offline():
+    if os.path.isdir(MODEL_CACHE_DIR):
+        os.environ["MODELSCOPE_CACHE"] = MODEL_CACHE_DIR
+        _apply_modelscope_offline_patch()
 
 
 def _apply_modelscope_offline_patch():
@@ -38,6 +57,9 @@ def _apply_modelscope_offline_patch():
             cache_dir = kwargs.get("cache_dir") or os.environ.get("MODELSCOPE_CACHE") or os.environ.get("MODEL_CACHE_DIR")
             if not cache_dir:
                 return _original(model_id=model_id, model=model, *args, **kwargs)
+            cache_dir = os.path.abspath(os.path.expanduser(str(cache_dir)))
+            if not os.path.isdir(cache_dir):
+                return _original(model_id=model_id, model=model, *args, **kwargs)
             # ModelScope 结构: cache_dir/models/org/model_name 或 cache_dir/hub/models/org/model_name
             for sub in ("models", os.path.join("hub", "models")):
                 local_dir = os.path.join(cache_dir, sub, str(mid).replace("/", os.sep))
@@ -45,7 +67,10 @@ def _apply_modelscope_offline_patch():
                 if os.path.isfile(model_pt):
                     logger.info(f"[MODEL] 使用本地缓存: {local_dir}")
                     return local_dir
-            return _original(model_id=model_id, model=model, *args, **kwargs)
+            raise RuntimeError(
+                f"[MODEL] 未找到 {mid} 的 model.pt (cache_dir={cache_dir})。"
+                "需尝试联网下载，请先运行: python scripts/download_models.py"
+            )
 
         modelscope.snapshot_download = _patched_snapshot_download
         # FunASR 可能从 hub 子模块导入，需同步 patch
@@ -55,6 +80,10 @@ def _apply_modelscope_offline_patch():
         logger.info("[MODEL] 已应用 ModelScope 离线补丁")
     except Exception as e:
         logger.warning(f"[MODEL] ModelScope 离线补丁未生效: {e}")
+
+
+# 模块加载时即初始化，确保 patch 在 FunASR 导入前生效
+_init_modelscope_offline()
 
 
 class ModelManager:
@@ -104,16 +133,10 @@ class ModelManager:
             )
             logger.info("[VAD] 本地加载完成")
         else:
-            self.vad_model, self.vad_utils = torch.hub.load(
-                repo_or_dir="snakers4/silero-vad",
-                model="silero_vad",
-                source="github",
-                force_reload=False,
-                skip_validation=True,
-                trust_repo=True,
-                onnx=False,
+            raise RuntimeError(
+                f"[VAD] Silero VAD 目录不存在: {SILERO_VAD_PATH}。"
+                "需尝试联网下载，请先运行: python scripts/download_models.py --silero"
             )
-            logger.info("[VAD] 网络加载完成")
         if on_progress:
             on_progress("vad", "done")
 
@@ -173,36 +196,51 @@ class ModelManager:
         return any(e in existing for e in label_enc)
 
     def _patch_hyperparams_for_offline_wav2vec2(self, savedir: str) -> None:
-        """若存在本地 wav2vec2-base，将 hyperparams 中的 wav2vec2_hub 指向本地路径，以支持离线"""
+        """若存在本地 wav2vec2-base，将 hyperparams 中的 wav2vec2_hub、pretrained_path 指向本地路径，以支持离线"""
         import re
-        w2v_dir = os.path.abspath(os.path.join(savedir, "wav2vec2-base"))
+        savedir_abs = os.path.abspath(savedir)
+        local_base = savedir_abs.replace("\\", "/")
+        w2v_dir = os.path.join(savedir_abs, "wav2vec2-base")
         config_path = os.path.join(w2v_dir, "config.json")
         if not os.path.isfile(config_path):
             logger.warning(
                 "[EMO] wav2vec2-base 未找到，将尝试联网。请将 pretrained_models/emotion-recognition-wav2vec2-IEMOCAP/wav2vec2-base/ "
                 "从 Windows 拷到 Ubuntu（含 config.json、pytorch_model.bin 等）"
             )
-            return
         hp_path = os.path.join(savedir, "hyperparams.yaml")
         if not os.path.isfile(hp_path):
             return
         with open(hp_path, "r", encoding="utf-8") as f:
             content = f.read()
-        # 统一 wav2vec2_hub 为当前机器的绝对路径（处理从 Windows 拷到 Ubuntu 后路径失效）
-        local_path = w2v_dir.replace("\\", "/")
-        new_line = f"wav2vec2_hub: {local_path}"
+        changed = False
+        # 1. wav2vec2_hub → 本地 wav2vec2-base 路径（跨机器拷贝后路径会失效）
+        w2v_line = f"wav2vec2_hub: {w2v_dir.replace(os.sep, '/')}"
         if re.search(r"wav2vec2_hub:\s*[^\n]+", content):
-            old_line = re.search(r"wav2vec2_hub:\s*[^\n]+", content).group(0)
-            if old_line.strip() != new_line.strip():
-                content = re.sub(r"wav2vec2_hub:\s*[^\n]+", new_line, content)
-                with open(hp_path, "w", encoding="utf-8") as f:
-                    f.write(content)
-                logger.info("[EMO] 已 patch hyperparams → wav2vec2_hub 指向本地 %s", local_path)
+            old = re.search(r"wav2vec2_hub:\s*[^\n]+", content).group(0)
+            if old.strip() != w2v_line.strip():
+                content = re.sub(r"wav2vec2_hub:\s*[^\n]+", w2v_line, content)
+                changed = True
+        # 2. pretrained_path → 本地 savedir（关键：否则 Pretrainer 会从 HF 拉 model.ckpt，Ubuntu 上会卡住）
+        if re.search(r"pretrained_path:\s*[^\n]+", content):
+            old = re.search(r"pretrained_path:\s*[^\n]+", content).group(0)
+            new_line = f"pretrained_path: {local_base}"
+            if "speechbrain/" in old:
+                content = re.sub(r"pretrained_path:\s*[^\n]+", new_line, content)
+                changed = True
+        if changed:
+            with open(hp_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            logger.info("[EMO] 已 patch hyperparams → wav2vec2_hub 与 pretrained_path 指向本地 %s", local_base)
 
     def _ensure_speechbrain_savedir(self, savedir: str) -> None:
-        """若 savedir 不完整，通过 HF snapshot_download 补全（临时允许联网）"""
+        """若 savedir 不完整，通过 HF snapshot_download 补全。HF_HUB_OFFLINE=1 时禁止联网，仅提示"""
         if self._speechbrain_savedir_complete(savedir):
             return
+        if os.environ.get("HF_HUB_OFFLINE", "").strip() in ("1", "true"):
+            raise RuntimeError(
+                "[EMO] SpeechBrain 模型文件不完整且已禁用联网。"
+                "需尝试联网下载，请先运行: python scripts/download_models.py --speechbrain"
+            )
         logger.info("[EMO] savedir 不完整，尝试从 HuggingFace 补全 ...")
         orig_offline = os.environ.pop("HF_HUB_OFFLINE", None)
         try:
@@ -234,34 +272,73 @@ class ModelManager:
             return
 
         logger.info("[EMO] 加载 SpeechBrain 情感模型 ...")
+        _log_memory()
         if on_progress:
             on_progress("emotion", "loading")
 
+        logger.info("[EMO] 步骤 1/5: 检查 savedir ...")
         self._ensure_speechbrain_savedir(SPEECHBRAIN_EMOTION_DIR)
+        if on_progress:
+            on_progress("emotion", "loading")
+        logger.info("[EMO] 步骤 2/5: patch hyperparams（wav2vec2/pretrained_path）...")
         self._patch_hyperparams_for_offline_wav2vec2(SPEECHBRAIN_EMOTION_DIR)
+        _log_memory()
 
         sys.modules["speechbrain.integrations.nlp.flair_embeddings"] = None
+        os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+        # Ubuntu 上 HF_HUB_OFFLINE=1 可能导致 fetch 卡住，暂时解除（本地模型完整时不会触发下载）
+        orig_hf = os.environ.pop("HF_HUB_OFFLINE", None)
+        orig_tf = os.environ.pop("TRANSFORMERS_OFFLINE", None)
+        logger.info("[EMO] 步骤 3/5: 导入 foreign_class ...")
         from speechbrain.inference.interfaces import foreign_class
-
+        savedir_abs = os.path.abspath(SPEECHBRAIN_EMOTION_DIR)
+        # FetchConfig/LocalStrategy 在旧版 SpeechBrain 中可能不存在，需兼容
+        extra_kw = {}
+        try:
+            from speechbrain.utils.fetching import FetchConfig, LocalStrategy
+            allow_net = os.environ.get("SB_ALLOW_NETWORK", "1") in ("1", "true")
+            extra_kw["fetch_config"] = FetchConfig(
+                allow_network=allow_net,
+                overwrite=False,
+                allow_updates=False,
+                huggingface_cache_dir=savedir_abs,
+            )
+            extra_kw["local_strategy"] = LocalStrategy.NO_LINK
+            logger.info("[EMO] 步骤 4/5: 调用 foreign_class（fetch_config+local_strategy）...")
+        except ImportError:
+            logger.info("[EMO] 步骤 4/5: 调用 foreign_class（兼容旧版 SpeechBrain，无 FetchConfig）...")
+        _log_memory()
+        # 设置 SB_DEBUG=1 可开启 SpeechBrain 详细日志，便于定位卡住位置
+        _sb_log = logging.getLogger("speechbrain")
+        _orig_level = _sb_log.level
+        if os.environ.get("SB_DEBUG", "").strip() in ("1", "true"):
+            _sb_log.setLevel(logging.DEBUG)
         try:
             self.emotion_classifier = foreign_class(
-                source="speechbrain/emotion-recognition-wav2vec2-IEMOCAP",
+                source=savedir_abs,
                 pymodule_file="custom_interface.py",
                 classname="CustomEncoderWav2vec2Classifier",
-                savedir=SPEECHBRAIN_EMOTION_DIR,
+                savedir=savedir_abs,
                 run_opts={"device": "cpu"},
+                **extra_kw,
             )
         except Exception as e:
-            logger.exception(f"[EMO] SpeechBrain 加载失败: {e}")
+            _log_memory()
+            logger.exception("[EMO] SpeechBrain 加载失败: %s", e)
             raise RuntimeError(
                 f"SpeechBrain 情感模型加载失败: {e}\n"
-                "请确保 pretrained_models/emotion-recognition-wav2vec2-IEMOCAP 下有完整文件 "
-                "(model.ckpt, wav2vec2.ckpt, hyperparams.yaml, custom_interface.py, label_encoder.txt)，"
-                "以及 wav2vec2-base/ 子目录（离线必需）。"
+                "8GB 内存机器建议: 1) 添加 4GB swap; 2) 设置 EMOTION_LAZY_LOAD=1 延迟加载情感模型。"
                 "在有网络机器上运行: python scripts/download_models.py --speechbrain"
             ) from e
+        finally:
+            _sb_log.setLevel(_orig_level)
+            if orig_hf is not None:
+                os.environ["HF_HUB_OFFLINE"] = orig_hf
+            if orig_tf is not None:
+                os.environ["TRANSFORMERS_OFFLINE"] = orig_tf
 
-        logger.info("[EMO] SpeechBrain 情感模型加载完成")
+        logger.info("[EMO] 步骤 5/5: SpeechBrain 情感模型加载完成")
+        _log_memory()
         if on_progress:
             on_progress("emotion", "done")
 

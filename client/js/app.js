@@ -47,13 +47,13 @@
         vad: { name: "VAD模型", progress: 20 },
         paraformer: { name: "Paraformer模型", progress: 50 },
         sensevoice: { name: "SenseVoice模型", progress: 50 },
-        emotion: { name: "情感模型", progress: 80 },
+        emotion: { name: "情感模型（首次较慢，请稍候）", progress: 80 },
         all: { name: "完成", progress: 100 },
       };
 
       let connectionCompleted = false;
       let lastMessageTime = Date.now();
-      const connectionTimeout = 120000; // 2分钟超时
+      const connectionTimeout = 300000; // 5分钟（首次加载 SpeechBrain 可能需 2–3 分钟）
       
       // 设置连接超时
       connectionTimeoutId = setTimeout(() => {
@@ -68,7 +68,7 @@
           progressPanel.classList.add("hidden");
           document.querySelectorAll('input[name="mode"]').forEach(r => r.disabled = false);
           
-          UI.showError("连接超时，请检查网络或服务器状态");
+          UI.showError("连接超时（5分钟），首次加载模型可能较慢，请稍后重试");
           UI.setStatus("连接超时", "disconnected");
         }
       }, connectionTimeout);

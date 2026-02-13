@@ -6,21 +6,60 @@ import logging
 import queue
 import time
 import os
+import sys
+import warnings
+
+# 忽略 transformers + torch 的 pytree 弃用警告（库兼容性问题，不影响功能）
+warnings.filterwarnings(
+    "ignore",
+    message=r".*_register_pytree_node.*deprecated.*",
+    category=FutureWarning,
+)
+
+# 确保项目根目录在 Python 路径中（解决从不同目录启动时的 ModuleNotFoundError）
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
 
 from fastapi import FastAPI, WebSocket, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .config import PROJECT_ROOT, DEFAULT_MODE
-from .models import ModelManager
-from .ws_handler import handle_audio_ws
+from .config import (
+    PROJECT_ROOT,
+    DEFAULT_MODE,
+    MODEL_CACHE_DIR,
+    SILERO_VAD_PATH,
+    SPEECHBRAIN_EMOTION_DIR,
+)
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+# 尽早打印路径，便于 Ubuntu/Windows 迁移排查（在 models 导入前）
+logger.info(
+    "项目路径: PROJECT_ROOT=%s | MODEL_CACHE_DIR=%s | SILERO=%s | SPEECHBRAIN=%s",
+    PROJECT_ROOT,
+    MODEL_CACHE_DIR,
+    SILERO_VAD_PATH,
+    SPEECHBRAIN_EMOTION_DIR,
+)
+try:
+    from .models import ModelManager
+    from .ws_handler import handle_audio_ws
+except ModuleNotFoundError as e:
+    _srv = __import__("server")
+    _dp = getattr(_srv, "__path__", [])
+    _mp = os.path.join(_dp[0], "models.py") if _dp else "(unknown)"
+    raise RuntimeError(
+        f"无法导入 server.models: {e}\n"
+        f"models.py 预期路径: {_mp} (存在: {os.path.isfile(_mp) if _dp else '?'})\n"
+        f"sys.path 前 3 项: {sys.path[:3]}"
+    ) from e
 
 
 app = FastAPI(title="语音情感识别服务")
@@ -67,7 +106,7 @@ async def connect_models(mode: str = Query(default=DEFAULT_MODE)):
         loop = asyncio.get_event_loop()
         mm = ModelManager()
         last_heartbeat = time.time()
-        heartbeat_interval = 2.0  # 每2秒发送一次心跳
+        heartbeat_interval = 1.0  # 每1秒发送心跳，避免首次加载 SpeechBrain（较慢）时连接被判定超时
 
         # 在线程池中加载模型
         load_task = loop.run_in_executor(None, mm.load_for_mode, mode, on_progress)
